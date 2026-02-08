@@ -1,0 +1,263 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(uuid())
+  username      String    @unique
+  email         String    @unique
+  password_hash String
+  avatar_url    String?   // Added for profile management
+  role_id       String?
+  role          Role?     @relation(fields: [role_id], references: [id])
+  created_at    DateTime  @default(now())
+  last_login    DateTime?
+
+  auditLogs     AuditLog[]
+  logs          UpdateLog[]
+  backups       Backup[]
+  scheduled     ScheduledUpdate[]
+}
+
+model Role {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?  // Added description
+  permissions Json     // List of permission strings e.g. ["user.create", "server.update"]
+  users       User[]
+}
+
+model AuditLog {
+    id        String   @id @default(uuid())
+    userId    String?
+    action    String
+    target    String
+    details   String?  @db.Text
+    ipAddress String?
+    createdAt DateTime @default(now())
+
+    user      User?    @relation(fields: [userId], references: [id])
+}
+
+model Server {
+  id                String   @id @default(uuid())
+  pterodactyl_id    Int      @unique
+  identifier        String   @unique // Added for Client API calls
+  name              String
+  status            String   // online, offline, etc.
+  path              String   // /var/lib/pterodactyl/volumes/...
+  last_sync         DateTime?
+  last_health_check DateTime?
+  last_log_offset   BigInt   @default(0) // Track file read position for log parser
+  display_order     Int      @default(0) // Added for UI reordering
+
+  plugins       Plugin[]
+  backups       Backup[]
+  health_stats  ServerHealth[]
+  alerts        HealthAlert[]
+  logs          UpdateLog[]
+  schedules     ScheduledUpdate[]
+  webhooks      Webhook[]
+  bulkUpdates   BulkUpdateProgress[]
+}
+
+model Plugin {
+  id              String   @id @default(uuid())
+  server_id       String
+  server          Server   @relation(fields: [server_id], references: [id], onDelete: Cascade)
+  name            String
+  current_version String
+  filename        String
+  icon_url        String?
+  description     String?
+  latest_version  String?  // Added for update checking
+  
+  source_type     String   // spigot, hangar, modrinth, custom
+  source_id       String?  // ID in marketplace
+  source_url      String?
+  homepage_url    String?
+  
+  auto_update     Boolean  @default(false)
+  is_managed      Boolean  @default(false) // Added missing field
+  last_checked    DateTime @default(now())
+  created_at      DateTime @default(now())
+
+  versions      PluginVersion[]
+  logs          UpdateLog[]
+
+  @@unique([server_id, filename]) // Added composite unique constraint
+}
+
+model PluginVersion {
+  id                String   @id @default(uuid())
+  plugin_id         String
+  plugin            Plugin   @relation(fields: [plugin_id], references: [id], onDelete: Cascade)
+  version           String
+  file_path         String   // Path in archive
+  file_size         BigInt
+  is_installed      Boolean  @default(false)
+  minecraft_versions Json?   // Supported versions
+  release_notes     String?
+  release_date      DateTime?
+  created_at        DateTime @default(now())
+  created_by        String?  // System or User ID if manual upload
+}
+
+model MarketplaceCache {
+  id             String   @id @default(uuid())
+  source_type    String
+  source_id      String
+  plugin_name    String
+  latest_version String
+  data           Json     // Full metadata
+  last_updated   DateTime @updatedAt
+
+  @@unique([source_type, source_id])
+}
+
+model UpdateLog {
+  id            String   @id @default(uuid())
+  plugin_id     String?
+  plugin        Plugin?  @relation(fields: [plugin_id], references: [id])
+  server_id     String?
+  server        Server?  @relation(fields: [server_id], references: [id])
+  user_id       String?
+  user          User?    @relation(fields: [user_id], references: [id])
+  
+  action        String   // update, rollback, install
+  old_version   String?
+  new_version   String?
+  status        String   // pending, success, failed
+  error_message String?
+  duration_ms   Int?
+  timestamp     DateTime @default(now())
+}
+
+model ScheduledUpdate {
+  id              String   @id @default(uuid())
+  name            String
+  description     String?
+  schedule_type   String   // one_time, recurring
+  scheduled_time  DateTime?
+  cron_expression String?
+  
+  target_type     String   // plugin, server, all
+  target_ids      Json     // Array of IDs
+  
+  status          String   // pending, running, completed, failed
+  created_by      String?
+  creator         User?    @relation(fields: [created_by], references: [id])
+  created_at      DateTime @default(now())
+  executed_at     DateTime?
+  
+  server_id       String?
+  server          Server?  @relation(fields: [server_id], references: [id], onDelete: Cascade)
+  is_active       Boolean  @default(true)
+  last_run        DateTime?
+  next_run        DateTime?
+  task_type       String?  // update_all, backup_all
+}
+
+model Backup {
+  id               String   @id @default(uuid())
+  backup_type      String   // plugin, server_plugins, full
+  server_id        String
+  server           Server   @relation(fields: [server_id], references: [id])
+  file_path        String
+  file_size        BigInt
+  plugins_included Json     // Array of plugin names/IDs
+  
+  created_at       DateTime @default(now())
+  created_by       String?
+  creator          User?    @relation(fields: [created_by], references: [id])
+  expires_at       DateTime?
+}
+
+model Webhook {
+  id          String   @id @default(uuid())
+  name        String
+  url         String
+  type        String   // discord, slack, custom
+  events      Json     // Array of event names
+  is_active   Boolean  @default(true)
+  
+  all_servers Boolean  @default(true)
+  servers     Server[] // Many-to-many relation
+  
+  created_at  DateTime @default(now())
+}
+
+model ServerHealth {
+  id             String   @id @default(uuid())
+  server_id      String
+  server         Server   @relation(fields: [server_id], references: [id])
+  timestamp      DateTime @default(now())
+  
+  tps            Float
+  ram_used       BigInt
+  ram_total      BigInt
+  player_count   Int
+  console_errors Json?    // Array of recent errors
+  status         String   // healthy, warning, critical
+}
+
+model HealthAlert {
+  id           String   @id @default(uuid())
+  server_id    String
+  server       Server   @relation(fields: [server_id], references: [id])
+  alert_type   String   // low_tps, high_ram, crash, plugin_error
+  severity     String   // low, medium, high, critical
+  message      String
+  triggered_at DateTime @default(now())
+  resolved_at  DateTime?
+  notified     Boolean  @default(false)
+}
+
+model LocalPlugin {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  author      String?
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  versions    LocalPluginVersion[]
+}
+
+model LocalPluginVersion {
+  id          String   @id @default(uuid())
+  plugin_id   String
+  plugin      LocalPlugin @relation(fields: [plugin_id], references: [id], onDelete: Cascade)
+  version     String
+  filename    String
+  file_path   String   // Path in local storage
+  file_size   BigInt
+  created_at  DateTime @default(now())
+  
+  @@unique([plugin_id, version])
+}
+
+model BulkUpdateProgress {
+  id              String   @id @default(uuid())
+  server_id       String
+  total           Int
+  completed       Int
+  failed          Int
+  status          String   // 'running', 'completed', 'failed', 'paused_rate_limit'
+  current_plugin  String?
+  retry_after     Int?     // Seconds to wait if rate limited
+  started_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+  
+  server          Server   @relation(fields: [server_id], references: [id], onDelete: Cascade)
+  
+  @@index([server_id])
+}
