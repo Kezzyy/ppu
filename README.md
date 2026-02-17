@@ -61,7 +61,7 @@ PPU supports two file access modes, configured via `FILE_ACCESS_MODE` in your `.
 ### Direct Mode (Recommended) ⚡
 ```env
 FILE_ACCESS_MODE=direct
-VOLUMES_PATH=/var/pterodactyl/volumes
+VOLUMES_PATH=/var/lib/pterodactyl/volumes
 ```
 PPU accesses server plugin files **directly on disk** via the mounted volumes directory. This is the recommended setup — no API rate limits, instant file operations, and supports bulk updates without throttling.
 
@@ -87,7 +87,7 @@ Check `backend/.env.example` for a full list of configuration options.
 | `PTERODACTYL_API_KEY` | Application API Key with Read/Write permissions for servers. |
 | `DATABASE_URL` | PostgreSQL connection string. |
 | `FILE_ACCESS_MODE` | `direct` (recommended) or `api`. Default: `direct`. |
-| `VOLUMES_PATH` | Path to Wings server volumes. Default: `/var/pterodactyl/volumes`. |
+| `VOLUMES_PATH` | Path to Wings server volumes. Default: `/var/lib/pterodactyl/volumes`. |
 | `BULK_UPDATE_DELAY_MS` | Delay between updates in bulk operations (API mode only). |
 
 > **Note on Initial User:** The application should create a user based on `.env` variables (if implemented). However, this feature is currently unverified. If it fails, use the default credentials:

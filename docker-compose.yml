@@ -15,7 +15,7 @@ services:
     volumes:
       - ./uploads:/app/backend/uploads
       - ./storage:/app/backend/storage
-      - ${VOLUMES_PATH:-/var/pterodactyl/volumes}:/pterodactyl-volumes:rw
+      - ${VOLUMES_PATH:-/var/lib/pterodactyl/volumes}:/pterodactyl-volumes:rw
     environment:
       - FILE_ACCESS_MODE=${FILE_ACCESS_MODE:-direct}
       - VOLUMES_PATH=/pterodactyl-volumes

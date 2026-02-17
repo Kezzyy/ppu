@@ -50,7 +50,7 @@ export const syncServers = async (req: Request, res: Response, next: NextFunctio
                     identifier: server.attributes.identifier,
                     name: server.attributes.name,
                     status: server.attributes.is_suspended ? 'suspended' : 'active',
-                    path: `${process.env.VOLUMES_PATH || '/var/pterodactyl/volumes'}/${server.attributes.uuid}`,
+                    path: `${process.env.VOLUMES_PATH || '/var/lib/pterodactyl/volumes'}/${server.attributes.uuid}`,
                     last_sync: new Date(),
                 }
             });
