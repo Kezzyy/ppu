@@ -2,11 +2,7 @@ version: '3.8'
 
 services:
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      args:
-        CACHEBUST: ${CACHEBUST:-1}
+    image: ghcr.io/kezzyy/ppu:latest
     container_name: shimatsu-updater
     restart: always
     ports:

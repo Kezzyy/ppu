@@ -14,8 +14,7 @@
 -   **Rate Limit Handling:** Smartly handles Pterodactyl API rate limits to prevent disruptions during bulk operations (functional but may need further optimization).
 -   **Version Control:** Keeps track of current and latest versions. Supports rollbacks (stored locally, keeps last 3 versions).
 -   **Hash-Based Scanning:** As of now it's not working as I couldn't figure a way how to implement it.
--   **Marketplace Integration:** Supports installing plugins from SpigotMC and Modrinth.
-    -   *Note: Plugin linking is currently partial and requires manual input for initial identification. Searching (e.g., specific to Velocity) needs improvement.*
+-   **Marketplace Integration:** Supports installing plugins from SpigotMC and Modrinth. Supports direct URL linking and platform-specific filtering (Paper, Velocity, BungeeCord, etc.).
 -   **Web Interface:** A sleek, modern dashboard to view update progress, server health, and manage plugins visually.
 -   **Dockerized:** Easy deployment using Docker and Docker Compose.
 
@@ -47,7 +46,7 @@ The easiest way to run PPU is using Docker Compose.
 
 3.  **Start the Application:**
     ```bash
-    docker compose up -d --build
+    docker compose up -d
     ```
 
 4.  **Access the Dashboard:**
