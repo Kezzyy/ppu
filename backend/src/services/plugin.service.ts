@@ -1,5 +1,5 @@
 import prisma from '../prisma/client';
-import pterodactylService from './pterodactyl.service';
+import fileService from './file.service';
 import versionService from './version.service';
 import webhookService from './webhook.service';
 import fs from 'fs';
@@ -21,7 +21,7 @@ class PluginService {
 
         // List files in the standard plugins directory
         // Use 'identifier' (short UUID) for Client API calls
-        const files = await pterodactylService.listFiles(server.identifier, 'plugins');
+        const files = await fileService.listFiles(server.identifier, 'plugins', server.path);
 
         const jarFiles = files.data.filter(f => f.attributes.name.endsWith('.jar'));
 
@@ -171,11 +171,12 @@ class PluginService {
 
         console.log(`Installing update for ${plugin.name}: Downloading from ${downloadUrl}`);
 
-        await pterodactylService.pullFile(
+        await fileService.pullFile(
             plugin.server.identifier,
             downloadUrl,
             '/plugins',
-            plugin.filename
+            plugin.filename,
+            plugin.server.path
         );
 
         // Update DB
@@ -452,7 +453,7 @@ class PluginService {
 
         console.log(`[PluginService] Installing ${filename} to server ${server.name} from ${downloadUrl}`);
 
-        await pterodactylService.pullFile(server.identifier, downloadUrl, '/plugins', filename);
+        await fileService.pullFile(server.identifier, downloadUrl, '/plugins', filename, server.path);
 
         return await prisma.plugin.upsert({
             where: {
@@ -497,7 +498,7 @@ class PluginService {
         console.log(`[PluginService] Deleting plugin ${plugin.filename} from server ${plugin.server.name}`);
 
         try {
-            await pterodactylService.deleteFile(plugin.server.identifier, `/plugins/${plugin.filename}`);
+            await fileService.deleteFile(plugin.server.identifier, `/plugins/${plugin.filename}`, plugin.server.path);
         } catch (error: any) {
             console.warn(`[PluginService] Failed to delete file ${plugin.filename} on Pterodactyl`, error.message);
         }
@@ -521,7 +522,7 @@ class PluginService {
         });
         if (!server) throw new Error('Server not found');
 
-        const files = await pterodactylService.listFiles(server.identifier, 'plugins');
+        const files = await fileService.listFiles(server.identifier, 'plugins', server.path);
         const jarFiles = files.data.filter(f => f.attributes.name.endsWith('.jar'));
 
         console.log(`Deep Scan: Found ${jarFiles.length} jar files to process.`);
@@ -554,7 +555,7 @@ class PluginService {
 
                 console.log(`Deep Scan: Processing ${filename}...`);
 
-                const stream = await pterodactylService.downloadFileStream(server.identifier, `/plugins/${filename}`);
+                const stream = await fileService.downloadFileStream(server.identifier, `/plugins/${filename}`, server.path);
 
                 const sha1 = crypto.createHash('sha1');
                 const sha512 = crypto.createHash('sha512');
@@ -743,7 +744,7 @@ class PluginService {
             throw new Error(`Server not found: ${serverId}`);
         }
 
-        await pterodactylService.uploadFile(server.identifier, filePath, '/plugins');
+        await fileService.uploadFile(server.identifier, filePath, '/plugins', server.path);
 
         // Register in database
         const existingPlugin = await prisma.plugin.findFirst({

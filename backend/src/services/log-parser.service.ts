@@ -1,6 +1,6 @@
 
 import prisma from '../prisma/client';
-import pterodactylService from './pterodactyl.service';
+import fileService from './file.service';
 import eventService from './event.service';
 
 class LogParserService {
@@ -23,16 +23,16 @@ class LogParserService {
         });
 
         for (const server of servers) {
-            await this.checkServerLog(server.id, server.identifier, server.name, BigInt((server as any).last_log_offset || 0));
+            await this.checkServerLog(server.id, server.identifier, server.name, BigInt((server as any).last_log_offset || 0), server.path);
         }
     }
 
     /**
      * Check log for a single server
      */
-    private async checkServerLog(serverId: string, identifier: string, serverName: string, lastOffset: bigint) {
+    private async checkServerLog(serverId: string, identifier: string, serverName: string, lastOffset: bigint, serverPath: string) {
         try {
-            const files = await pterodactylService.listFiles(identifier, 'logs');
+            const files = await fileService.listFiles(identifier, 'logs', serverPath);
             const logFile = files.data.find(f => f.attributes.name === 'latest.log');
 
             if (!logFile) return; // No log file found
@@ -46,7 +46,7 @@ class LogParserService {
                 return;
             }
 
-            const content = await pterodactylService.getFileContent(identifier, 'logs/latest.log');
+            const content = await fileService.getFileContent(identifier, 'logs/latest.log', serverPath);
 
             const newContent = content.length > Number(lastOffset) ? content.slice(Number(lastOffset)) : content;
 

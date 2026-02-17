@@ -11,9 +11,8 @@
 ## 🔥 Features
 
 -   **Automatic Updates:** Scans your servers for outdated plugins and updates them automatically (requires setting up a Schedule in servers you want inside PPU) or with a single click.
--   **Rate Limit Handling:** Smartly handles Pterodactyl API rate limits to prevent disruptions during bulk operations (functional but may need further optimization).
+-   **Direct File Access:** Reads and writes plugin files directly on disk — no API rate limits, instant operations.
 -   **Version Control:** Keeps track of current and latest versions. Supports rollbacks (stored locally, keeps last 3 versions).
--   **Hash-Based Scanning:** As of now it's not working as I couldn't figure a way how to implement it.
 -   **Marketplace Integration:** Supports installing plugins from SpigotMC and Modrinth. Supports direct URL linking and platform-specific filtering (Paper, Velocity, BungeeCord, etc.).
 -   **Web Interface:** A sleek, modern dashboard to view update progress, server health, and manage plugins visually.
 -   **Dockerized:** Easy deployment using Docker and Docker Compose.
@@ -22,11 +21,12 @@
 
 ## 🛠️ Installation
 
-The easiest way to run PPU is using Docker Compose.
+The easiest way to run PPU is using Docker Compose. **PPU must be deployed on the same machine as Pterodactyl Wings** for the recommended setup.
 
 ### Prerequisites
 -   Docker Engine
 -   Docker Compose
+-   Pterodactyl Wings running on the same machine
 
 ### Quick Start
 
@@ -54,6 +54,29 @@ The easiest way to run PPU is using Docker Compose.
 
 ---
 
+## 📂 Deployment Modes
+
+PPU supports two file access modes, configured via `FILE_ACCESS_MODE` in your `.env`:
+
+### Direct Mode (Recommended) ⚡
+```env
+FILE_ACCESS_MODE=direct
+VOLUMES_PATH=/var/pterodactyl/volumes
+```
+PPU accesses server plugin files **directly on disk** via the mounted volumes directory. This is the recommended setup — no API rate limits, instant file operations, and supports bulk updates without throttling.
+
+**Requirement:** PPU must run on the **same machine** as Pterodactyl Wings.
+
+### API Mode ⚠️
+```env
+FILE_ACCESS_MODE=api
+```
+PPU uses the **Pterodactyl API** for all file operations (upload, download, delete). This mode works when PPU is deployed on a different machine than Wings.
+
+> **⚠️ WARNING:** API mode is subject to Pterodactyl's built-in rate limiting. Bulk operations (scanning, updating multiple plugins) will be significantly slower and may fail during high-volume operations. **Direct mode is strongly recommended for production use.**
+
+---
+
 ## ⚙️ Configuration
 
 Check `backend/.env.example` for a full list of configuration options.
@@ -63,7 +86,9 @@ Check `backend/.env.example` for a full list of configuration options.
 | `PTERODACTYL_URL` | The URL of your Pterodactyl Panel (e.g., `https://panel.example.com`). |
 | `PTERODACTYL_API_KEY` | Application API Key with Read/Write permissions for servers. |
 | `DATABASE_URL` | PostgreSQL connection string. |
-| `BULK_UPDATE_DELAY_MS` | Delay between updates in bulk operations to prevent API throttling. |
+| `FILE_ACCESS_MODE` | `direct` (recommended) or `api`. Default: `direct`. |
+| `VOLUMES_PATH` | Path to Wings server volumes. Default: `/var/pterodactyl/volumes`. |
+| `BULK_UPDATE_DELAY_MS` | Delay between updates in bulk operations (API mode only). |
 
 > **Note on Initial User:** The application should create a user based on `.env` variables (if implemented). However, this feature is currently unverified. If it fails, use the default credentials:
 > - **Username:** `admin`
@@ -93,3 +118,4 @@ This tool is provided "as is" without warranty of any kind. While every effort h
 ---
 
 *Made with ❤️ for the Minecraft Server Community.*
+

@@ -3,7 +3,7 @@ import path from 'path';
 import axios from 'axios';
 import { Plugin } from '@prisma/client';
 import prisma from '../prisma/client';
-import pterodactylService from './pterodactyl.service';
+import fileService from './file.service';
 
 const STORAGE_DIR = path.join(__dirname, '../../storage/versions');
 
@@ -57,7 +57,7 @@ class VersionService {
         const remoteFilePath = `/plugins/${plugin.filename}`;
 
         try {
-            const downloadUrl = await pterodactylService.getDownloadUrl(serverIdentifier, remoteFilePath);
+            const downloadUrl = await fileService.getDownloadUrl(serverIdentifier, remoteFilePath, plugin.server.path);
 
             // Prepare local storage
             const pluginDir = path.join(STORAGE_DIR, plugin.id);
@@ -70,18 +70,25 @@ class VersionService {
             const localFilePath = path.join(pluginDir, localFilename);
 
             const writer = fs.createWriteStream(localFilePath);
-            const response = await axios({
-                url: downloadUrl,
-                method: 'GET',
-                responseType: 'stream'
-            });
 
-            response.data.pipe(writer);
+            // In direct mode, downloadUrl is a local path; in API mode it's a signed URL
+            if (downloadUrl.startsWith('/')) {
+                // Direct mode — copy from local path
+                await fs.promises.copyFile(downloadUrl, localFilePath);
+            } else {
+                const response = await axios({
+                    url: downloadUrl,
+                    method: 'GET',
+                    responseType: 'stream'
+                });
 
-            await new Promise((resolve, reject) => {
-                writer.on('finish', () => resolve(true));
-                writer.on('error', reject);
-            });
+                response.data.pipe(writer);
+
+                await new Promise((resolve, reject) => {
+                    writer.on('finish', () => resolve(true));
+                    writer.on('error', reject);
+                });
+            }
 
             const stats = fs.statSync(localFilePath);
             await prisma.pluginVersion.create({
@@ -126,10 +133,8 @@ class VersionService {
 
         console.log(`[VersionService] Restoring ${plugin.name} to version ${version.version}...`);
 
-        const uploadUrl = await pterodactylService.getUploadUrl(serverIdentifier, '/plugins');
-
         const fileBuffer = fs.readFileSync(localFilePath);
-        await pterodactylService.uploadFileToUrl(uploadUrl, fileBuffer, plugin.filename);
+        await fileService.uploadBuffer(serverIdentifier, fileBuffer, plugin.filename, '/plugins', plugin.server.path);
 
         // Update DB to reflect restored version
         await prisma.plugin.update({
