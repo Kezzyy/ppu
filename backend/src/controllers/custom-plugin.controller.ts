@@ -3,7 +3,7 @@ import { Request, Response, NextFunction } from 'express';
 import prisma from '../prisma/client';
 import fs from 'fs';
 import path from 'path';
-import pluginService from '../services/plugin.service'; // We might need a new method here or separate service
+import pluginService from '../services/plugin.service';
 import { auditService } from '../services/audit.service';
 
 const STORAGE_DIR = path.join(__dirname, '../../storage/custom_plugins');
@@ -67,12 +67,11 @@ export const uploadVersion = async (req: Request, res: Response, next: NextFunct
 
         const plugin = await prisma.localPlugin.findUnique({ where: { id: pluginId } });
         if (!plugin) {
-            // cleanup
+
             fs.unlinkSync(file.path);
             return res.status(404).json({ status: 'error', message: 'Plugin not found' });
         }
 
-        // Check version uniqueness
         const existingVersion = await prisma.localPluginVersion.findUnique({
             where: {
                 plugin_id_version: {
@@ -87,9 +86,6 @@ export const uploadVersion = async (req: Request, res: Response, next: NextFunct
             return res.status(400).json({ status: 'error', message: 'Version already exists for this plugin' });
         }
 
-        // Move file to permanent location? 
-        // We can keep it in uploads or organize it. 
-        // Let's keep it in storage/custom_plugins/{pluginName}/{version}.jar for sanity.
         const pluginDir = path.join(STORAGE_DIR, plugin.name);
         if (!fs.existsSync(pluginDir)) {
             fs.mkdirSync(pluginDir, { recursive: true });
@@ -111,7 +107,6 @@ export const uploadVersion = async (req: Request, res: Response, next: NextFunct
             }
         });
 
-        // Update plugin timestamp
         await prisma.localPlugin.update({
             where: { id: pluginId },
             data: { updated_at: new Date() }
@@ -128,7 +123,6 @@ export const uploadVersion = async (req: Request, res: Response, next: NextFunct
         res.json({ status: 'success', data: versionEntry });
 
     } catch (error) {
-        // Cleanup file if it exists and wasn't moved?
         if (req.file && fs.existsSync(req.file.path)) {
             fs.unlinkSync(req.file.path);
         }
@@ -143,17 +137,14 @@ export const deletePlugin = async (req: Request, res: Response, next: NextFuncti
 
         if (!plugin) return res.status(404).json({ status: 'error', message: 'Plugin not found' });
 
-        // Files will be deleted if we delete DB entries? No, we need to delete files manually.
         const versions = await prisma.localPluginVersion.findMany({ where: { plugin_id: pluginId } });
 
-        // Delete files
         for (const v of versions) {
             if (fs.existsSync(v.file_path)) {
                 fs.unlinkSync(v.file_path);
             }
         }
 
-        // Try to verify empty directory
         const pluginDir = path.join(STORAGE_DIR, plugin.name);
         if (fs.existsSync(pluginDir)) {
             try { fs.rmdirSync(pluginDir); } catch (e) { }
@@ -205,7 +196,7 @@ export const deleteVersion = async (req: Request, res: Response, next: NextFunct
 export const deployVersion = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const { versionId } = req.params;
-        const { serverIds } = req.body; // Array of server IDs
+        const { serverIds } = req.body;
 
         if (!Array.isArray(serverIds) || serverIds.length === 0) {
             return res.status(400).json({ status: 'error', message: 'No servers selected' });
@@ -218,14 +209,8 @@ export const deployVersion = async (req: Request, res: Response, next: NextFunct
 
         if (!version) return res.status(404).json({ status: 'error', message: 'Version not found' });
 
-        // We should probably run this as a background job if many servers.
-        // For now, let's do it in a loop but maybe use the queue?
-        // Using `pluginService.installLocalPlugin` (to be created)
-
-        // Queue it?
         const results = [];
         for (const serverId of serverIds) {
-            // TODO: Implement this in pluginService
             await pluginService.installLocalPlugin(serverId, version);
             results.push({ serverId, status: 'initiated' });
         }

@@ -132,6 +132,10 @@ export const marketplaceService = {
             params: { q: query, platform, page, sort, category, loader }
         });
         return response.data;
+    },
+    resolveUrl: async (url: string) => {
+        const response = await apiClient.post<ApiResponse<{ source_type: 'spigot' | 'modrinth'; source_id: string; name: string }>>(`/marketplace/resolve-url`, { url });
+        return response.data;
     }
 };
 

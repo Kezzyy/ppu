@@ -3,7 +3,6 @@ import pluginService from '../services/plugin.service';
 
 export const pluginQueue = createQueue('plugin-operations');
 
-// Process jobs
 pluginQueue.process('update-all', async (job) => {
     const { serverId } = job.data;
     console.log(`[Queue] Processing update-all for server ${serverId} (Job ${job.id})`);
@@ -45,5 +44,3 @@ pluginQueue.process('deep-scan', async (job) => {
         throw error;
     }
 });
-
-// Add other processors here (e.g. scan, single update) if needed in future

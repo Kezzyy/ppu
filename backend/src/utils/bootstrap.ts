@@ -8,7 +8,6 @@ export const bootstrap = async () => {
         if (userCount === 0) {
             console.log('No users found. Seeding default admin account...');
 
-            // Ensure 'admin' role exists
             let adminRole = await prisma.role.findUnique({
                 where: { name: 'admin' },
             });
@@ -17,13 +16,12 @@ export const bootstrap = async () => {
                 adminRole = await prisma.role.create({
                     data: {
                         name: 'admin',
-                        permissions: ['*'], // Full permissions
+                        permissions: ['*'],
                     },
                 });
                 console.log('Created default "admin" role.');
             }
 
-            // Create admin user
             const adminPassword = process.env.ADMIN_PASSWORD || 'password';
             const hashedPassword = await bcrypt.hash(adminPassword, 10);
 

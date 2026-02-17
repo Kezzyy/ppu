@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { marketplaceService } from '../services/api';
 import { Button } from './ui/button';
-import { Search, Loader2, Download, Box, ExternalLink } from 'lucide-react';
+import { Search, Loader2, Download, Box, ExternalLink, Link2 } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface MarketplaceResult {
     id: string;
@@ -26,7 +27,9 @@ const PluginLinkModal = ({ isOpen, onClose, pluginName, onLink }: PluginLinkModa
     const [results, setResults] = useState<MarketplaceResult[]>([]);
     const [loading, setLoading] = useState(false);
     const [searched, setSearched] = useState(false);
-    const [platformFilter, setPlatformFilter] = useState<string>('all');
+    const [loaderFilter, setLoaderFilter] = useState<string>('all');
+    const [urlInput, setUrlInput] = useState('');
+    const [resolvingUrl, setResolvingUrl] = useState(false);
 
     // Reset and auto-search when pluginName changes or modal opens
     useEffect(() => {
@@ -35,6 +38,7 @@ const PluginLinkModal = ({ isOpen, onClose, pluginName, onLink }: PluginLinkModa
             setQuery(cleanName);
             setResults([]);
             setSearched(false);
+            setUrlInput('');
 
             // Auto-search
             const search = async () => {
@@ -42,7 +46,7 @@ const PluginLinkModal = ({ isOpen, onClose, pluginName, onLink }: PluginLinkModa
                 setLoading(true);
                 setSearched(true);
                 try {
-                    const data = await marketplaceService.search(cleanName);
+                    const data = await marketplaceService.search(cleanName, 'all', 1, 'relevance', 'all', 'all');
                     setResults(data.data);
                 } catch (error) {
                     console.error(error);
@@ -70,12 +74,40 @@ const PluginLinkModal = ({ isOpen, onClose, pluginName, onLink }: PluginLinkModa
         setLoading(true);
         setSearched(true);
         try {
-            const data = await marketplaceService.search(query);
+            const data = await marketplaceService.search(query, 'all', 1, 'relevance', 'all', loaderFilter);
             setResults(data.data);
         } catch (error) {
             console.error(error);
         } finally {
             setLoading(false);
+        }
+    };
+
+    // Re-search when loader filter changes (only if we already searched)
+    useEffect(() => {
+        if (searched && query.trim()) {
+            handleSearch();
+        }
+    }, [loaderFilter]);
+
+    const handleUrlInstall = async () => {
+        const url = urlInput.trim();
+        if (!url) return;
+
+        setResolvingUrl(true);
+        try {
+            const data = await marketplaceService.resolveUrl(url);
+            if (data.status === 'success' && data.data) {
+                onLink(data.data.source_id, data.data.source_type);
+                toast.success(`Linked via URL: ${data.data.name}`);
+            } else {
+                toast.error(data.message || 'Could not resolve plugin from URL');
+            }
+        } catch (error: any) {
+            console.error('URL resolve error:', error);
+            toast.error(error.response?.data?.message || 'Invalid or unsupported plugin URL');
+        } finally {
+            setResolvingUrl(false);
         }
     };
 
@@ -102,8 +134,43 @@ const PluginLinkModal = ({ isOpen, onClose, pluginName, onLink }: PluginLinkModa
                     </button>
                 </div>
 
+                {/* URL Input Section */}
+                <div className="p-4 border-b border-white/5 bg-[#1e1f23]">
+                    <div className="flex gap-2">
+                        <div className="relative flex-1">
+                            <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                            <input
+                                type="text"
+                                value={urlInput}
+                                onChange={(e) => setUrlInput(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && handleUrlInstall()}
+                                className="w-full bg-black/20 border border-white/10 rounded-lg pl-10 pr-4 py-2 text-white focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50 transition-all placeholder:text-gray-600 text-sm"
+                                placeholder="Paste Modrinth or Spigot URL..."
+                            />
+                        </div>
+                        <Button
+                            onClick={handleUrlInstall}
+                            disabled={resolvingUrl || !urlInput.trim()}
+                            className="bg-green-600 hover:bg-green-500 text-white shrink-0"
+                        >
+                            {resolvingUrl ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />}
+                            <span className="ml-2">Link URL</span>
+                        </Button>
+                    </div>
+                    <p className="text-[11px] text-gray-500 mt-1.5">
+                        Supports: modrinth.com/plugin/... and spigotmc.org/resources/...
+                    </p>
+                </div>
+
+                {/* Divider */}
+                <div className="flex items-center px-4 py-2 bg-[#1a1b1e]">
+                    <div className="flex-1 border-t border-white/5" />
+                    <span className="px-3 text-xs text-gray-500 uppercase tracking-wider">or search</span>
+                    <div className="flex-1 border-t border-white/5" />
+                </div>
+
                 {/* Search Bar */}
-                <div className="p-4 border-b border-white/5 bg-[#1a1b1e]">
+                <div className="px-4 pb-4 bg-[#1a1b1e]">
                     <div className="flex gap-2 mb-3">
                         <input
                             type="text"
@@ -112,27 +179,28 @@ const PluginLinkModal = ({ isOpen, onClose, pluginName, onLink }: PluginLinkModa
                             onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                             className="flex-1 bg-black/20 border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50 transition-all placeholder:text-gray-600"
                             placeholder="Search SpigotMC or Modrinth..."
-                            autoFocus
                         />
                         <Button onClick={handleSearch} disabled={loading} className="bg-blue-600 hover:bg-blue-500 text-white">
                             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
                             <span className="ml-2">Search</span>
                         </Button>
                     </div>
-                    {/* Platform Filter */}
+                    {/* Platform/Loader Filter */}
                     <div className="flex items-center gap-2">
                         <span className="text-sm text-gray-400">Platform:</span>
                         <select
-                            value={platformFilter}
-                            onChange={(e) => setPlatformFilter(e.target.value)}
+                            value={loaderFilter}
+                            onChange={(e) => setLoaderFilter(e.target.value)}
                             className="bg-black/20 border border-white/10 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50 transition-all"
                         >
                             <option value="all">All Platforms</option>
                             <option value="paper">Paper</option>
                             <option value="spigot">Spigot</option>
-                            <option value="bukkit">Bukkit</option>
                             <option value="velocity">Velocity</option>
+                            <option value="bungeecord">BungeeCord</option>
                             <option value="purpur">Purpur</option>
+                            <option value="fabric">Fabric</option>
+                            <option value="forge">Forge</option>
                         </select>
                     </div>
                 </div>
@@ -146,8 +214,7 @@ const PluginLinkModal = ({ isOpen, onClose, pluginName, onLink }: PluginLinkModa
                         </div>
                     ) : results.length > 0 ? (
                         results
-                            .filter(result => platformFilter === 'all' || result.name.toLowerCase().includes(platformFilter))
-                            .sort((a, b) => b.download_count - a.download_count) // Sort by downloads descending
+                            .sort((a, b) => b.download_count - a.download_count)
                             .map((result) => (
                                 <div key={`${result.source_type}-${result.id}`} className="flex gap-3 p-4 rounded-lg hover:bg-white/5 transition-colors border border-white/5 group">
                                     {/* Icon */}

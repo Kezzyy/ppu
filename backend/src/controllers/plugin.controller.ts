@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import pluginService from '../services/plugin.service';
 import { pluginQueue } from '../queues/plugin.queue';
 import { auditService } from '../services/audit.service';
-import prisma from '../prisma/client'; // Needed to fetch plugin names for logging if not returned by service
+import prisma from '../prisma/client';
 
 export const getPlugins = async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -36,8 +36,6 @@ export const scanPlugins = async (req: Request, res: Response, next: NextFunctio
 export const deepScanPlugins = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const { serverId } = req.params;
-        // Run asynchronously via queue ideally, or directly if requested.
-        // For deep scan, it takes time. Let's use the queue.
 
         await pluginQueue.add('deep-scan', { serverId });
 
@@ -87,7 +85,6 @@ export const checkUpdates = async (req: Request, res: Response, next: NextFuncti
 export const installUpdate = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const { pluginId } = req.params;
-        // Fetch plugin name before update for logging
         const pluginBefore = await prisma.plugin.findUnique({ where: { id: pluginId } });
 
         const plugin = await pluginService.installUpdate(pluginId);

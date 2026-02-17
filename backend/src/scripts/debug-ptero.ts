@@ -2,7 +2,6 @@ import axios from 'axios';
 import dotenv from 'dotenv';
 import path from 'path';
 
-// Load .env explicitly
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 const baseURL = process.env.PTERODACTYL_URL;
@@ -10,7 +9,6 @@ const apiKey = process.env.PTERODACTYL_API_KEY;
 
 console.log('--- Pterodactyl Connection Debugger ---');
 console.log('URL:', baseURL);
-// Mask API key for security
 console.log('API Key:', apiKey ? `${apiKey.substring(0, 5)}...${apiKey.substring(apiKey.length - 5)}` : 'MISSING');
 
 if (!baseURL || !apiKey) {

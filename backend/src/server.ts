@@ -1,4 +1,4 @@
-import 'dotenv/config'; // Load env vars before anything else
+import 'dotenv/config';
 import app from './app';
 import { bootstrap } from './utils/bootstrap';
 import { Server } from 'http';
@@ -10,10 +10,8 @@ let server: Server;
 import schedulerService from './services/scheduler.service';
 
 const startServer = async () => {
-    // Bootstrap admin user if needed
     await bootstrap();
 
-    // Initialize scheduler (will check env var)
     schedulerService.init();
 
     const expressServer = app.listen(PORT, () => {
@@ -22,14 +20,12 @@ const startServer = async () => {
     });
 
     server = expressServer;
-    // Initialize Socket.io
     const { initSocket } = require('./services/socket.service');
     initSocket(server);
 };
 
 startServer();
 
-// Handle unhandled promise rejections
 process.on('unhandledRejection', (err: Error) => {
     console.error('UNHANDLED REJECTION! 💥 Shutting down...');
     console.error(err.name, err.message);

@@ -1,17 +1,17 @@
 import { Server as HttpServer } from 'http';
-import { Server, Socket } from 'socket.io'; // Import Socket type
+import { Server, Socket } from 'socket.io';
 
 let io: Server | null = null;
 
 export const initSocket = (httpServer: HttpServer) => {
     io = new Server(httpServer, {
         cors: {
-            origin: process.env.FRONTEND_URL || '*', // Allow all for now or strict env
+            origin: process.env.FRONTEND_URL || '*',
             methods: ["GET", "POST"]
         }
     });
 
-    io.on('connection', (socket: Socket) => { // Use Socket type
+    io.on('connection', (socket: Socket) => {
         console.log('[Socket] Client connected:', socket.id);
 
         socket.on('disconnect', () => {

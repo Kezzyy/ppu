@@ -21,7 +21,7 @@ async function testRateLimit() {
                 blocked = true;
                 break;
             } else if (error.response?.status === 401) {
-                process.stdout.write('.'); // Normal failure
+                process.stdout.write('.');
             } else {
                 console.log(`Unexpected error: ${error.message}`);
             }
@@ -38,7 +38,6 @@ async function testRateLimit() {
 async function testAccessControl() {
     console.log('\n--- Testing Access Control (RBAC) ---');
 
-    // 1. Login as standard user (created in previous test: browseruser / Pass123!)
     let token = '';
     try {
         const loginRes = await axios.post(`${API_URL}/auth/login`, {
@@ -52,7 +51,6 @@ async function testAccessControl() {
         return;
     }
 
-    // 2. Try to create a user (Admin only)
     try {
         await axios.post(`${API_URL}/users`, {
             username: 'hacker',

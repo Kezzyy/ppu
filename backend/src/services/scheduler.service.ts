@@ -15,7 +15,7 @@ class SchedulerService {
     async init() {
         console.log('[Scheduler] Initializing schedules...');
 
-        // 1. User-defined schedules
+        // Load user-defined schedules
         const schedules = await prisma.scheduledUpdate.findMany({
             where: { is_active: true }
         });
@@ -26,18 +26,18 @@ class SchedulerService {
             }
         }
 
-        // 2. System-defined schedules (Metrics & Logs)
+        // System schedules
         // Metrics: Run every 5 minutes
         cron.schedule('*/5 * * * *', async () => {
             await metricsService.collectAllMetrics();
         });
 
-        // Logs: Run every 2 minutes (user requested periodic polling)
+        // Logs: Run every 2 minutes
         cron.schedule('*/2 * * * *', async () => {
             await logParserService.checkAllLogs();
         });
 
-        // 3. Network-wide Plugin Scan (Daily or Configured)
+        // Network-wide plugin scan
         const scanInterval = process.env.PLUGIN_SCAN_INTERVAL || '0 0 * * *'; // Default: Midnight daily
         if (cron.validate(scanInterval)) {
             cron.schedule(scanInterval, async () => {
@@ -102,21 +102,12 @@ class SchedulerService {
                         });
 
                         if (server) {
-                            // Emit event before action (or after, depending on preference. "Initiated" implies before/during)
                             eventService.emit('server:restart', {
                                 serverId,
                                 serverName: server.name,
                                 timestamp: new Date()
                             });
 
-                            // We need the external UUID or internal ID for ptero service?
-                            // PterodactylService.setPowerState takes "serverId" which is usually the client identifier/uuid.
-                            // The local DB "id" is a UUID. We need to check if PteroService expects local ID or Ptero ID.
-                            // Looking at PterodactylService.getServer, it takes "serverId".
-                            // Usually client API uses the "identifier" (short UUID) or "uuid" (long UUID).
-                            // My local DB has "identifier". PteroService likely needs that.
-
-                            // Let's check how PterodactylService is used elsewhere or fetch the identifier.
                             const pteroServer = await prisma.server.findUnique({ where: { id: serverId } });
                             if (pteroServer && pteroServer.identifier) {
                                 await pterodactylService.setPowerState(pteroServer.identifier, 'restart');

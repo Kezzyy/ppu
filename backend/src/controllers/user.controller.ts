@@ -50,7 +50,6 @@ export const createUser = async (req: Request, res: Response) => {
 
         const password_hash = await bcrypt.hash(password, 10);
 
-        // Find or create role (default to USER if not specified or not found)
         let role;
         if (role_name) {
             role = await prisma.role.findUnique({ where: { name: role_name } });
@@ -70,7 +69,6 @@ export const createUser = async (req: Request, res: Response) => {
             }
         });
 
-        // Log action
         await auditService.logAction(
             (req as any).user?.id,
             'USER_CREATE',
@@ -123,7 +121,6 @@ export const updateUser = async (req: Request, res: Response) => {
             }
         });
 
-        // Log action
         await auditService.logAction(
             (req as any).user?.id,
             'USER_UPDATE',
@@ -146,7 +143,6 @@ export const deleteUser = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
 
-        // Prevent self-deletion
         if ((req as any).user?.id === id) {
             return res.status(400).json({ status: 'fail', message: 'Cannot delete yourself' });
         }
@@ -154,7 +150,6 @@ export const deleteUser = async (req: Request, res: Response) => {
         const userToDelete = await prisma.user.findUnique({ where: { id } });
         await prisma.user.delete({ where: { id } });
 
-        // Log action
         await auditService.logAction(
             (req as any).user?.id,
             'USER_DELETE',

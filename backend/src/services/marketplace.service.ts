@@ -24,7 +24,7 @@ class MarketplaceService {
 
     private axiosClient = axios.create({
         headers: {
-            'User-Agent': 'ShimatsuPluginUpdater/1.0.0 (kezzy@shimatsu.gg)' // Replace with real info
+            'User-Agent': 'ShimatsuPluginUpdater/1.0.0 (kezzy@shimatsu.gg)' // TODO
         }
     });
 
@@ -56,8 +56,6 @@ class MarketplaceService {
 
         const results = await Promise.all(promises);
 
-        // Custom sort if not handled by APIs perfectly (though we try to use API sorting)
-        // If sort is 'downloads', we can re-sort the combined result
         let flatResults = results.flat();
 
         if (sort === 'downloads') {
@@ -81,33 +79,12 @@ class MarketplaceService {
      */
     private async searchSpigot(query: string, page: number, sort: string, category: string, loader: string): Promise<MarketplaceResult[]> {
         try {
-            // Spiget doesn't support 'loader' filtering easily (Spigot resources are mostly Spigot/Paper).
-            // If user asks for Velocity/Bungee, we might need to filter by category if we knew the IDs.
-            // For now, if loader is NOT 'all' or 'spigot'/'paper', we might return empty for Spigot to avoid clutter?
-            // Actually, Spigot resources work on Paper. 
-            // If loader is 'velocity' or 'bungee', Spiget has categories for them.
-            // Bungee = 2, Spigot = ? 
-            // Since we can't reliably map names to IDs without a lookup, we'll skip strict loader filtering for Spiget 
-            // UNLESS it's explicitly 'bungee' or 'velocity' where we might try to guess (but let's keep it simple for now).
-            // We will just return results and let the user decide, or implementing strict filtering later.
+            if (loader === 'fabric' || loader === 'forge') return [];
 
-            if (loader === 'velocity' || loader === 'fabric' || loader === 'forge') {
-                // Spiget is mostly Bukkit/Spigot/Bungee. Fabric/Forge/Velocity are rare or specific categories.
-                // We'll skip Spiget for Fabric/Forge to avoid irrelevance?
-                // Velocity resources exist on SpigotMC but mixed.
-                // Let's return empty for strictly non-Bukkit loaders to improve relevance.
-                if (loader === 'fabric' || loader === 'forge') return [];
-            }
-
-            // Spiget Search endpoint doesn't support complex filtering well. Ref: https://spiget.org/documentation
-            // However, /resources/ supports sorting. 
-            // Strategy: 
-            // If QUERY is present -> use /search/resources/{query} (limited sorting)
-            // If QUERY is empty -> use /resources (supports sorting & paging)
 
             const params: any = { ...this.spigetParams, page: page };
 
-            // Map Sort
+            // Map sort params
             if (sort === 'downloads') params.sort = '-downloads';
             else if (sort === 'updated') params.sort = '-updateDate';
             else if (sort === 'newest') params.sort = '-submissionDate';
@@ -116,14 +93,8 @@ class MarketplaceService {
 
             if (query && query.trim().length > 0) {
                 endpoint = `https://api.spiget.org/v2/search/resources/${encodeURIComponent(query)}`;
-                // Search endpoint ignores 'sort' param in Spiget usually, but we pass it anyway just in case v2 supports it now or we sort locally.
             } else {
                 endpoint = `https://api.spiget.org/v2/resources`;
-                if (category !== 'all') {
-                    // Spiget categories: 1=Bungee, 2=Spigot, etc. This mapping is hard.
-                    // For now, if category is specific, we might skip Spigot or try to find list.
-                    // Simplified: Ignore category for Spigot or default to searching known keywords if category is passed.
-                }
             }
 
             const response = await this.axiosClient.get(endpoint, { params });
@@ -139,11 +110,10 @@ class MarketplaceService {
                 download_count: item.downloads,
                 author: item.author?.id ? String(item.author.id) : 'Unknown',
                 last_updated: new Date(item.updateDate * 1000),
-                supported_versions: item.testedVersions ? item.testedVersions.join(', ') : 'Unknown', // Spiget Provides this
-                loader: 'Spigot/Paper' // Hardcoded for SpigotMC usually
+                supported_versions: item.testedVersions ? item.testedVersions.join(', ') : 'Unknown',
+                loader: 'Spigot/Paper'
             }));
         } catch (error: any) {
-            // Silently ignore 404 errors (plugin not found on Spigot)
             if (error.response?.status === 404) {
                 return [];
             }
@@ -157,15 +127,11 @@ class MarketplaceService {
      */
     private async searchModrinth(query: string, page: number, sort: string, category: string, loader: string): Promise<MarketplaceResult[]> {
         try {
-            // Modrinth uses offset and limit
             const limit = 9;
             const offset = (page - 1) * limit;
 
-            // Build Facets
             const facets: string[][] = [['project_type:plugin']];
             if (category !== 'all') {
-                // Map generic categories to Modrinth categories
-                // e.g. 'admin' -> 'categories:admin_tools'
                 const catMap: { [key: string]: string } = {
                     'admin': 'categories:admin_tools',
                     'dev': 'categories:developer_tools',
@@ -180,14 +146,12 @@ class MarketplaceService {
             }
 
             if (loader !== 'all') {
-                // Map loader to Modrinth categories (loaders)
-                // Modrinth uses 'categories:paper', 'categories:velocity', etc.
                 const loaderMap: { [key: string]: string } = {
                     'paper': 'categories:paper',
                     'velocity': 'categories:velocity',
-                    'waterfall': 'categories:waterfall', // Bungee fork
+                    'waterfall': 'categories:waterfall',
                     'bungeecord': 'categories:bungeecord',
-                    'fabric': 'categories:fabric', // Some server-side fabric mods act as plugins
+                    'fabric': 'categories:fabric',
                     'forge': 'categories:forge'
                 };
                 if (loaderMap[loader]) {
@@ -197,7 +161,6 @@ class MarketplaceService {
                 }
             }
 
-            // Map Sort (index)
             let index = 'relevance';
             if (sort === 'downloads') index = 'downloads';
             else if (sort === 'updated') index = 'updated';
@@ -224,7 +187,7 @@ class MarketplaceService {
                 download_count: item.downloads,
                 author: item.author,
                 last_updated: new Date(item.date_modified),
-                supported_versions: item.versions ? item.versions[item.versions.length - 1] : 'Unknown', // Modrinth search result doesn't give precise version list easily without extra call, but sometimes has generic version info. Actually hits don't have 'versions' array usually unless we fetch project. We'll leave as Unknown or fetch later if needed.
+                supported_versions: item.versions ? item.versions[item.versions.length - 1] : 'Unknown',
                 loader: item.categories ? item.categories.filter((c: string) => ['paper', 'velocity', 'bungeecord', 'spigot'].includes(c)).join(', ') : 'Unknown'
             }));
         } catch (error: any) {
@@ -268,11 +231,7 @@ class MarketplaceService {
         }
     }
 
-    /**
-     * Get download URL for latest version from SpigotMC
-     */
     async getDownloadUrlSpigot(resourceId: string): Promise<string | null> {
-        // https://api.spiget.org/v2/resources/12345/download
         return `https://api.spiget.org/v2/resources/${resourceId}/download`;
     }
 
@@ -288,7 +247,6 @@ class MarketplaceService {
 
             if (response.data && response.data.length > 0) {
                 const latest = response.data[0];
-                // Find primary file or first .jar
                 const file = latest.files.find((f: any) => f.primary) || latest.files[0];
                 if (file) {
                     return file.url;
@@ -302,21 +260,14 @@ class MarketplaceService {
     }
 
     async findByHash(sha1: string, sha512: string): Promise<MarketplaceResult | null> {
-        // Check local cache first
         const cacheKey = `marketplace:hash:${sha1}`;
         const cached = await redis.get(cacheKey);
         if (cached) return JSON.parse(cached);
 
         try {
-            // Modrinth Version from Hash
-            // POST https://api.modrinth.com/v2/version_file/{hash}?algorithm=sha1
-            // or sha512
-            // We'll use SHA-1 for broader compatibility, but SHA-512 is preferred by Modrinth
-
-            // Try Modrinth
             try {
                 const response = await this.axiosClient.post(`https://api.modrinth.com/v2/version_file/${sha1}?algorithm=sha1`);
-                const versionData = response.data; // This returns the VERSION object
+                const versionData = response.data;
 
                 if (versionData && versionData.project_id) {
                     // Fetch Project Details
@@ -332,7 +283,7 @@ class MarketplaceService {
                         source_type: 'modrinth',
                         source_url: `https://modrinth.com/plugin/${project.slug}`,
                         download_count: project.downloads,
-                        author: 'Unknown', // Need another call or use id
+                        author: 'Unknown',
                         last_updated: new Date(project.updated),
                         supported_versions: versionData.game_versions.join(', '),
                         loader: versionData.loaders.join(', ')
@@ -344,21 +295,85 @@ class MarketplaceService {
                 }
             } catch (error: any) {
                 if (error.response?.status === 404) {
-                    // Not found on Modrinth - This is expected for non-Modrinth plugins
-                    // console.log(`[Marketplace] Hash not found on Modrinth: ${sha1}`);
                 } else {
                     console.error(`[Marketplace] Modrinth Hash Lookup Error: ${error.message} (Status: ${error.response?.status})`);
                 }
             }
-
-            // Spigot doesn't really have a public hash lookup API that is reliable without downloading everything.
-            // We could try to match by filename if we had a massive DB, but for now we skip.
 
             return null;
         } catch (error) {
             console.error('Hash Lookup Error:', error);
             return null;
         }
+    }
+
+    parsePluginUrl(url: string): { source_type: 'spigot' | 'modrinth'; source_id: string } | null {
+        try {
+            const parsed = new URL(url);
+
+            // Modrinth: https://modrinth.com/plugin/{slug} or /mod/{slug}
+            if (parsed.hostname === 'modrinth.com') {
+                const parts = parsed.pathname.split('/').filter(Boolean);
+                // e.g. ['plugin', 'viaversion'] or ['plugin', 'viaversion', 'version', 'xxx']
+                if (parts.length >= 2 && (parts[0] === 'plugin' || parts[0] === 'mod')) {
+                    return { source_type: 'modrinth', source_id: parts[1] };
+                }
+            }
+
+            // Spigot: https://www.spigotmc.org/resources/{name}.{id}/ or /resources/{id}/
+            if (parsed.hostname === 'www.spigotmc.org' || parsed.hostname === 'spigotmc.org') {
+                const parts = parsed.pathname.split('/').filter(Boolean);
+                if (parts.length >= 2 && parts[0] === 'resources') {
+                    const resourcePart = parts[1].replace(/\/$/, '');
+                    // Could be "essentialsx.9089" or just "9089"
+                    const dotMatch = resourcePart.match(/\.(\d+)$/);
+                    if (dotMatch) {
+                        return { source_type: 'spigot', source_id: dotMatch[1] };
+                    }
+                    // Plain numeric ID
+                    if (/^\d+$/.test(resourcePart)) {
+                        return { source_type: 'spigot', source_id: resourcePart };
+                    }
+                }
+            }
+        } catch (e) {
+            // Invalid URL
+        }
+        return null;
+    }
+
+    async resolveFromUrl(url: string): Promise<{ source_type: 'spigot' | 'modrinth'; source_id: string; name: string } | null> {
+        const parsed = this.parsePluginUrl(url);
+        if (!parsed) return null;
+
+        try {
+            if (parsed.source_type === 'modrinth') {
+                // Slug lookup via Modrinth API
+                const response = await this.axiosClient.get(`https://api.modrinth.com/v2/project/${parsed.source_id}`);
+                if (response.data) {
+                    return {
+                        source_type: 'modrinth',
+                        source_id: response.data.id, // Use actual project ID, not slug
+                        name: response.data.title
+                    };
+                }
+            } else if (parsed.source_type === 'spigot') {
+                const response = await this.axiosClient.get(`https://api.spiget.org/v2/resources/${parsed.source_id}`, {
+                    params: { fields: 'id,name' }
+                });
+                if (response.data) {
+                    return {
+                        source_type: 'spigot',
+                        source_id: String(response.data.id),
+                        name: response.data.name
+                    };
+                }
+            }
+        } catch (error: any) {
+            console.error(`[Marketplace] Failed to resolve URL: ${url}`, error.message);
+        }
+
+        return null;
     }
 }
 

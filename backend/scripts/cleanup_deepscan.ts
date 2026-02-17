@@ -6,13 +6,10 @@ const prisma = new PrismaClient();
 async function cleanup() {
     console.log('Cleaning up Deep Scan data...');
 
-    // Reset plugins that are NOT custom (i.e. Spigot/Modrinth/Hangar matches from Deep Scan)
-    // We assume 'custom' plugins should be kept as is.
-    // 'manual' is the default for unidentified plugins.
     const result = await prisma.plugin.updateMany({
         where: {
             source_type: {
-                notIn: ['custom', 'manual'] // Reset anything that claims to be from a repo but might be wrong
+                notIn: ['custom', 'manual']
             }
         },
         data: {
@@ -26,7 +23,6 @@ async function cleanup() {
 
     console.log(`Reset ${result.count} plugins to manual state.`);
 
-    // Also clear the cache if needed
     const cacheResult = await prisma.marketplaceCache.deleteMany({});
     console.log(`Cleared ${cacheResult.count} cache entries.`);
 }

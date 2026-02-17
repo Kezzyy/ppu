@@ -105,7 +105,6 @@ class PluginService {
 
             // Fetch latest version based on source
             if (plugin.source_type === 'spigot' && plugin.source_id) {
-                // Import locally to avoid circular dependency if possible, or just use import at top
                 const marketplaceService = require('./marketplace.service').default;
                 latestVersion = await marketplaceService.getLatestVersionSpigot(plugin.source_id);
             } else if (plugin.source_type === 'modrinth' && plugin.source_id) {
@@ -139,29 +138,25 @@ class PluginService {
      * Install an update for a plugin
      */
     async installUpdate(pluginId: string) {
-        // 1. Get plugin details
         const plugin = await prisma.plugin.findUnique({
             where: { id: pluginId },
-            include: { server: true } // Need server ptero identifier
+            include: { server: true }
         });
 
         if (!plugin) throw new Error('Plugin not found');
         if (!plugin.source_id) throw new Error('Plugin has no source linked');
         if (!plugin.latest_version) throw new Error('No update available');
 
-        // 1.5 Backup current version
+        // Backup before updating
         try {
             console.log(`[PluginService] Backing up ${plugin.name} before update...`);
             await versionService.backupPlugin(plugin.id);
         } catch (error) {
             console.error(`[PluginService] Warning: Backup failed for ${plugin.name}`, error);
-            // Continue update even if backup fails? User might want to know.
-            // For now, log and continue.
         }
 
-        // 2. Get download URL
+        // Get download URL
         let downloadUrl: string | null = null;
-        // Import locally or at top
         const marketplaceService = require('./marketplace.service').default;
 
         if (plugin.source_type === 'spigot') {
@@ -174,12 +169,6 @@ class PluginService {
             throw new Error('Could not get download URL from marketplace');
         }
 
-        // 3. Trigger Pterodactyl pull
-        // Note: We pull to /plugins directory with the same filename to overwrite
-        // Pterodactyl file paths are relative to server root
-        // Using 'plugins' assumes standard layout. 
-        // We know the filename from DB.
-
         console.log(`Installing update for ${plugin.name}: Downloading from ${downloadUrl}`);
 
         await pterodactylService.pullFile(
@@ -189,7 +178,7 @@ class PluginService {
             plugin.filename
         );
 
-        // 4. Update DB to reflect new version
+        // Update DB
         const updatedPlugin = await prisma.plugin.update({
             where: { id: plugin.id },
             data: {
@@ -300,7 +289,7 @@ class PluginService {
 
                     results.success++;
                     results.details.push({ plugin: plugin.name, status: 'success' });
-                    success = true; // Exit retry loop
+                    success = true;
 
                     if (io) {
                         io.to(`server:${serverId}`).emit('plugin:update:progress', {
@@ -409,13 +398,6 @@ class PluginService {
             }
         });
 
-        // Dispatch Bulk Complete Webhook
-        // We need server name, fetch it quickly or pass it in? 
-        // We only have serverId. We can fetch it or just send ID if name is not critical, 
-        // but Discord embed looks better with name.
-        // Let's quickly fetch server name if we didn't already (we queried plugins, but not server directly here).
-        // Optimization: Pass server object or name to this function? 
-        // For now, simple query.
         try {
             const server = await prisma.server.findUnique({ where: { id: serverId }, select: { name: true } });
             if (server) {
@@ -534,13 +516,11 @@ class PluginService {
         console.log(`Starting Deep Scan for server: ${serverId}`);
         const crypto = require('crypto');
 
-        // 1. Get server
         const server = await prisma.server.findUnique({
             where: { id: serverId },
         });
         if (!server) throw new Error('Server not found');
 
-        // 2. List files
         const files = await pterodactylService.listFiles(server.identifier, 'plugins');
         const jarFiles = files.data.filter(f => f.attributes.name.endsWith('.jar'));
 
@@ -574,10 +554,8 @@ class PluginService {
 
                 console.log(`Deep Scan: Processing ${filename}...`);
 
-                // 3. Download Stream
                 const stream = await pterodactylService.downloadFileStream(server.identifier, `/plugins/${filename}`);
 
-                // 4. Calculate Hashes (SHA1 & SHA512)
                 const sha1 = crypto.createHash('sha1');
                 const sha512 = crypto.createHash('sha512');
 
@@ -595,13 +573,11 @@ class PluginService {
 
                 console.log(`Deep Scan: ${filename} SHA1=${sha1Hash}`);
 
-                // 5. Match
                 const match = await marketplaceService.findByHash(sha1Hash, sha512Hash);
 
                 if (match) {
                     console.log(`Deep Scan: Matched ${filename} -> ${match.name} (${match.source_type})`);
 
-                    // 6. Update DB
                     await prisma.plugin.upsert({
                         where: {
                             server_id_filename: {
@@ -612,9 +588,9 @@ class PluginService {
                         update: {
                             source_type: match.source_type,
                             source_id: match.id,
-                            is_managed: true, // Now managed!
-                            current_version: match.supported_versions || 'unknown', // Best guess
-                            latest_version: match.supported_versions || 'unknown', // We assume matched version is what we have
+                            is_managed: true,
+                            current_version: match.supported_versions || 'unknown',
+                            latest_version: match.supported_versions || 'unknown',
                             last_checked: new Date()
                         },
                         create: {
@@ -641,7 +617,6 @@ class PluginService {
 
                     if (metadata.name.length > 2) {
                         const searchResults = await marketplaceService.search(metadata.name);
-                        // Find best match
                         const bestMatch = this.findBestMatch(searchResults, metadata);
 
                         if (bestMatch) {
@@ -657,18 +632,8 @@ class PluginService {
                                     source_type: bestMatch.source_type,
                                     source_id: bestMatch.id,
                                     is_managed: true,
-                                    // If we parsed a version from filename, use it. Otherwise use unknown.
                                     current_version: metadata.version || 'unknown',
-                                    // We don't know if it's latest, but let's assume it ISN'T if we just found it via search, 
-                                    // unless we can verify version. 
-                                    // Actually, if we match, let's just set latest_version to what marketplace says (which is usually latest).
-                                    // So we'll see an update available if our file is old.
-                                    latest_version: bestMatch.supported_versions || 'unknown', // This is actually latest version from search result usually? No, search result 'supported_versions' is usually game version. 
-                                    // Marketplace search doesn't give latest plugin version typically.
-                                    // We might need to fetch latest version in a separate job or let the update checker handle it.
-                                    // For now, let's set latest to 'unknown' or just don't set it? 
-                                    // Upsert requires it. Let's set it to 'unknown' to trigger a check later?
-                                    // Or better: Use the version we parsed as current.
+                                    latest_version: bestMatch.supported_versions || 'unknown',
                                     last_checked: new Date()
                                 },
                                 create: {
@@ -676,7 +641,7 @@ class PluginService {
                                     name: bestMatch.name,
                                     filename: filename,
                                     current_version: metadata.version || 'unknown',
-                                    latest_version: 'unknown', // Will be checked by update job
+                                    latest_version: 'unknown',
                                     source_type: bestMatch.source_type,
                                     source_id: bestMatch.id,
                                     is_managed: true,
@@ -686,12 +651,10 @@ class PluginService {
                             results.matched++;
                             results.details.push({ filename, matched: true, name: bestMatch.name, method: 'filename' });
                         } else {
-                            // No match found even with fallback
                             await this.markAsManual(server.id, filename);
                             results.details.push({ filename, matched: false });
                         }
                     } else {
-                        // Name too short or unparseable
                         await this.markAsManual(server.id, filename);
                         results.details.push({ filename, matched: false });
                     }
@@ -732,11 +695,8 @@ class PluginService {
     }
 
     private parseFilename(filename: string): { name: string, version: string | null } {
-        // Remove .jar and (1) copy markers
         let clean = filename.replace(/\.jar$/, '').replace(/\(\d+\)/, '');
 
-        // Split by hyphen, underscore, or space
-        // Strategy: Look for first number. Everything before is name.
         const match = clean.match(/^([a-zA-Z0-9\s\-_]+?)[-_\s]v?(\d+\.\d+.*)$/);
 
         if (match) {
@@ -746,7 +706,6 @@ class PluginService {
             };
         }
 
-        // If no version number found, assume mostly name
         return {
             name: clean.replace(/[-_]/g, ' ').trim(),
             version: null
@@ -758,22 +717,14 @@ class PluginService {
 
         const targetName = metadata.name.toLowerCase();
 
-        // 1. Exact Name Match (insensitive)
         const exact = results.find((r: any) => r.name.toLowerCase() === targetName);
         if (exact) return exact;
 
-        // 2. Contains Match (if name is long enough)
-        // e.g. "AdvancedBan Bundle" vs "AdvancedBan"
-        // If our parsed name "AdvancedBan Bundle" contains result name "AdvancedBan" -> Good
-        // If result name "AdvancedBan" contains parsed name "AdvancedBan" -> Good
         const contains = results.find((r: any) =>
             (targetName.length > 5 && r.name.toLowerCase().includes(targetName)) ||
             (r.name.length > 5 && targetName.includes(r.name.toLowerCase()))
         );
         if (contains) return contains;
-
-        // 3. Spigot ID match in filename? (Rare)
-        // e.g. "PluginName.12345.jar"
 
         return null;
     }
@@ -792,7 +743,6 @@ class PluginService {
             throw new Error(`Server not found: ${serverId}`);
         }
 
-        // Upload to Pterodactyl using the identifier (required for Client API)
         await pterodactylService.uploadFile(server.identifier, filePath, '/plugins');
 
         // Register in database
@@ -812,7 +762,7 @@ class PluginService {
                 data: {
                     current_version: version.version,
                     source_type: 'custom',
-                    source_id: version.plugin.id, // Link to LocalPlugin ID
+                    source_id: version.plugin.id,
                     filename: version.filename
                 }
             });

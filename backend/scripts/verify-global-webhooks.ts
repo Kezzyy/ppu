@@ -2,19 +2,15 @@
 import { PrismaClient } from '@prisma/client';
 import webhookService from '../src/services/webhook.service';
 
-// Mock dependencies
 const prisma = new PrismaClient();
 
 async function main() {
     console.log('--- Verifying Global Webhooks ---');
 
-    // 1. Clean up previous test data
     console.log('Cleaning up old test webhooks...');
     await prisma.webhook.deleteMany({ where: { name: { startsWith: 'TEST-GLOBAL' } } });
-    // Also clean up test server if it exists from failed previous run
     await prisma.server.deleteMany({ where: { identifier: 'test-global-verifier' } });
 
-    // 2. Create a Global Webhook (All Servers)
     console.log('Creating global webhook (All Servers)...');
     const globalWebhook = await prisma.webhook.create({
         data: {
@@ -28,9 +24,6 @@ async function main() {
     });
     console.log('Global Webhook Created:', globalWebhook.id);
 
-    // 3. Create a Specific Server Webhook
-    // First need a server
-    // Check if we have any server, if not create a dummy one matching schema
     let server = await prisma.server.findFirst();
     if (!server) {
         console.log('No server found, creating dummy server...');
@@ -61,11 +54,8 @@ async function main() {
     });
     console.log('Specific Webhook Created:', specificWebhook.id);
 
-    // 4. Verify Dispatch Logic
     console.log('Testing Dispatch Query Logic...');
 
-    // Case A: Dispatch for Server X should find BOTH global and specific
-    // We access the logic by reproducing the query used in WebhookService.dispatch
     const webhooksForServer = await prisma.webhook.findMany({
         where: {
             is_active: true,
@@ -85,7 +75,6 @@ async function main() {
         console.error('❌ FAIL: Dispatch query failed. Global:', hasGlobal, 'Specific:', hasSpecific);
     }
 
-    // Case B: Dispatch for a Random Server (should only find Global)
     const randomServerId = 'non-existent-server-id';
     const webhooksForRandom = await prisma.webhook.findMany({
         where: {
@@ -106,7 +95,6 @@ async function main() {
         console.error('❌ FAIL: Dispatch query failed for random server. Global:', hasGlobalRandom, 'Specific:', hasSpecificRandom);
     }
 
-    // Cleanup
     console.log('Cleaning up...');
     await prisma.webhook.deleteMany({ where: { name: { startsWith: 'TEST-GLOBAL' } } });
     if (server.identifier === 'test-global-verifier') {

@@ -178,8 +178,6 @@ class PterodactylService {
         const form = new FormData();
         form.append('files', stream, filename);
 
-        // Upload using a fresh axios instance to avoid base URL/auth conflicts
-        // Pterodactyl upload URL includes sftp/upload/etc
         await axios.post(uploadUrl.replace(/\\/g, ''), form, {
             headers: form.getHeaders(),
             maxContentLength: Infinity,

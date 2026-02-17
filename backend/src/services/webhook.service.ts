@@ -66,7 +66,7 @@ class WebhookService {
      * Format payload for Discord Webhooks
      */
     private formatDiscordPayload(event: string, payload: any) {
-        // Customize based on event type
+        // Format based on event type
         if (event === 'plugin:update:success') {
             return {
                 embeds: [{

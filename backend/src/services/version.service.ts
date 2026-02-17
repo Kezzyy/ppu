@@ -57,10 +57,9 @@ class VersionService {
         const remoteFilePath = `/plugins/${plugin.filename}`;
 
         try {
-            // 1. Get download URL
             const downloadUrl = await pterodactylService.getDownloadUrl(serverIdentifier, remoteFilePath);
 
-            // 2. Prepare local storage
+            // Prepare local storage
             const pluginDir = path.join(STORAGE_DIR, plugin.id);
             if (!fs.existsSync(pluginDir)) {
                 fs.mkdirSync(pluginDir, { recursive: true });
@@ -70,7 +69,6 @@ class VersionService {
             const localFilename = `${timestamp}-${plugin.filename}`;
             const localFilePath = path.join(pluginDir, localFilename);
 
-            // 3. Download file
             const writer = fs.createWriteStream(localFilePath);
             const response = await axios({
                 url: downloadUrl,
@@ -85,13 +83,12 @@ class VersionService {
                 writer.on('error', reject);
             });
 
-            // 4. Create DB record
             const stats = fs.statSync(localFilePath);
             await prisma.pluginVersion.create({
                 data: {
                     plugin_id: plugin.id,
                     version: plugin.current_version,
-                    file_path: localFilename, // Store relative to pluginDir
+                    file_path: localFilename,
                     file_size: stats.size,
                     created_at: new Date()
                 }
@@ -99,13 +96,11 @@ class VersionService {
 
             console.log(`[VersionService] Backed up ${plugin.name} (${plugin.current_version})`);
 
-            // 5. Enforce retention (Keep last 3)
+            // Keep only last 3 versions
             await this.enforceRetention(plugin.id);
 
         } catch (error) {
             console.error(`[VersionService] Failed to backup plugin ${plugin.name}:`, error);
-            // We might not want to block the update if backup fails, optionally throw
-            // throw error; 
         }
     }
 
@@ -131,25 +126,16 @@ class VersionService {
 
         console.log(`[VersionService] Restoring ${plugin.name} to version ${version.version}...`);
 
-        // 1. Get upload URL
-        // We upload to the plugins directory
         const uploadUrl = await pterodactylService.getUploadUrl(serverIdentifier, '/plugins');
 
-        // 2. Upload file
         const fileBuffer = fs.readFileSync(localFilePath);
-        // Note: The filename in the upload will determine the file name on the server.
-        // We want to restore it as the ORIGINAL filename (e.g. "WorldEdit.jar"), not "1234-WorldEdit.jar".
         await pterodactylService.uploadFileToUrl(uploadUrl, fileBuffer, plugin.filename);
 
-        // 3. Update DB
-        // We update current_version to the restored version
-        // We also reset latest_version to null or trigger a check? 
-        // If we restore an old version, latest_version might still be valid as "update available".
+        // Update DB to reflect restored version
         await prisma.plugin.update({
             where: { id: plugin.id },
             data: {
                 current_version: version.version
-                // Don't change latest_version, so it correctly shows as "Update Available" if it's old
             }
         });
 

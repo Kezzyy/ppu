@@ -21,7 +21,6 @@ class MetricsService {
 
             // Fetch resources from Pterodactyl
             const stats = await pterodactylService.getServerResources(server.identifier);
-            // We also need limits which are found in the server details, not resources
             const serverDetails = await pterodactylService.getServer(server.identifier);
 
             const attributes = stats.attributes;
@@ -30,7 +29,6 @@ class MetricsService {
             // Determine status based on resources
             let status = 'healthy';
 
-            // limits.memory is in MB. memory_bytes is in Bytes.
             if (limits.memory > 0) {
                 const memoryLimitBytes = limits.memory * 1024 * 1024;
                 const usage = (attributes.resources.memory_bytes / memoryLimitBytes) * 100;
@@ -44,10 +42,7 @@ class MetricsService {
             if (status === 'critical') {
                 await import('./alert.service').then(m => m.default.createAlert(server.id, 'high_ram', 'high', `RAM usage is critical (>90%)`));
             } else if (status === 'offline') {
-                // Don't alert for offline unless strictly required, usually annoying if manual stop. 
-                // Maybe check if it was supposed to be online?
             } else {
-                // Resolve high_ram alert if healthy
                 await import('./alert.service').then(m => m.default.resolveAlert(server.id, 'high_ram'));
             }
 
@@ -55,10 +50,10 @@ class MetricsService {
             await prisma.serverHealth.create({
                 data: {
                     server_id: server.id,
-                    tps: 20, // Ptero doesn't give TPS, would need RCON or Plugin. Placeholder.
+                    tps: 20, // Placeholde
                     ram_used: BigInt(attributes.resources.memory_bytes),
                     ram_total: BigInt(limits.memory * 1024 * 1024),
-                    player_count: 0, // Ptero doesn't give player count in resources API
+                    player_count: 0, // Placeholder
                     status: status,
                     timestamp: new Date()
                 }
@@ -89,7 +84,6 @@ class MetricsService {
 
         console.log(`[Metrics] Collecting metrics for ${servers.length} servers...`);
 
-        // Run in batches or sequence to avoid rate limits
         for (const server of servers) {
             await this.collectMetrics(server.id);
         }

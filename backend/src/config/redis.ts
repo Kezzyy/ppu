@@ -10,7 +10,7 @@ const redis = new Redis(redisUrl, {
         const delay = Math.min(times * 50, 2000);
         return delay;
     },
-    maxRetriesPerRequest: null // Required for Bull
+    maxRetriesPerRequest: null
 });
 
 redis.on('connect', () => {

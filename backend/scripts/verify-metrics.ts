@@ -20,8 +20,6 @@ async function main() {
     console.log(`Using server: ${testServer.name} (${testServer.identifier})`);
 
     console.log('2. Collecting metrics...');
-    // We need to mock Pterodactyl service or ensure it works with real API if credentials are set
-    // Assuming real credentials are in .env as checked before
     try {
         await metricsService.collectMetrics(testServer.id);
         console.log('✅ collectMetrics executed without error.');
@@ -47,8 +45,6 @@ async function main() {
         console.error('❌ No health entry found in DB!');
     }
 
-    // Cleanup (optional, maybe keep it to see history?)
-    // await prisma.serverHealth.delete({ where: { id: healthEntry.id } });
 }
 
 main()

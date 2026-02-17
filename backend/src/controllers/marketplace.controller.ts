@@ -5,7 +5,6 @@ export const searchPlugins = async (req: Request, res: Response, next: NextFunct
     try {
         const { q, platform, page, sort, category, loader } = req.query;
 
-        // Allow empty query if sort is provided (e.g. for "Most Popular")
         if ((!q || typeof q !== 'string') && !sort) {
             return res.status(400).json({ status: 'fail', message: 'Query parameter "q" is required' });
         }
@@ -27,3 +26,27 @@ export const searchPlugins = async (req: Request, res: Response, next: NextFunct
         next(error);
     }
 };
+
+export const resolveUrl = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const { url } = req.body;
+
+        if (!url || typeof url !== 'string') {
+            return res.status(400).json({ status: 'fail', message: 'URL is required' });
+        }
+
+        const result = await marketplaceService.resolveFromUrl(url);
+
+        if (!result) {
+            return res.status(400).json({ status: 'fail', message: 'Could not resolve plugin from this URL. Supported: modrinth.com and spigotmc.org' });
+        }
+
+        res.json({
+            status: 'success',
+            data: result
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+

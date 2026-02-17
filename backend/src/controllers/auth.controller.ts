@@ -23,17 +23,14 @@ export const register = async (req: Request, res: Response) => {
             return res.status(409).json({ status: 'fail', message: 'Username already exists' });
         }
 
-        // Email is optional for now in quick register, or generate a dummy one if required by DB
-        // If your schema requires email, you must provide it or update schema
-        // Assuming email is required and unique:
-        const email = `${username}@example.com`; // Placeholder or require input
+        const email = `${username}@example.com`;
 
         const password_hash = await bcrypt.hash(password, 10);
 
         const newUser = await prisma.user.create({
             data: {
                 username,
-                email, // Added email
+                email,
                 password_hash,
                 role: {
                     connect: { name: 'USER' }
@@ -85,10 +82,8 @@ export const login = async (req: Request, res: Response) => {
 
     const token = signToken(user.id, user.role?.name || 'USER');
 
-    // Log login action
     await auditService.logAction(user.id, 'USER_LOGIN', `User ${user.username} logged in`, null, req.ip);
 
-    // Update last login
     await prisma.user.update({
         where: { id: user.id },
         data: { last_login: new Date() }
@@ -190,8 +185,6 @@ export const uploadUserAvatar = async (req: Request, res: Response) => {
         return res.status(400).json({ status: 'fail', message: 'No file uploaded' });
     }
 
-    // Construct URL (Assuming server runs on same host/port or configured base URL)
-    // In production, this should use an ENV variable for the base URL
     const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
     const avatarUrl = `${baseUrl}/uploads/avatars/${req.file.filename}`;
 

@@ -7,11 +7,9 @@ async function main() {
     console.log('--- Verifying Alert System ---');
 
     console.log('1. Mocking Webhook Dispatch...');
-    // We mock the dispatch method to see if it gets called
     const originalDispatch = webhookService.dispatch;
     let dispatchCalled = false;
 
-    // Monkey-patch dispatch
     (webhookService as any).dispatch = async (serverId: string, event: string, payload: any) => {
         console.log(`✅ Webhook Dispatched: ${event}`, payload);
         dispatchCalled = true;

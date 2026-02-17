@@ -5,10 +5,8 @@ import { uploadPlugin } from '../middlewares/upload.middleware';
 
 const router = Router();
 
-// Base path: /api/custom-plugins
-
-router.use(protect); // All routes require auth
-router.use(restrictTo('admin')); // All routes require admin for now
+router.use(protect);
+router.use(restrictTo('admin'));
 
 router.get('/', CustomPluginController.listPlugins);
 router.post('/', CustomPluginController.createPlugin);

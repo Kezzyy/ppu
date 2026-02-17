@@ -31,7 +31,7 @@ const Dashboard: React.FC<DashboardProps> = ({ server }) => {
         }
     };
 
-    // Calculate generic stats
+    // Calculate stats from latest health entry
     const currentRam = healthHistory.length > 0 ? healthHistory[0].ram_used : 0;
     const ramMB = Math.round(Number(currentRam) / 1024 / 1024);
     const status = healthHistory.length > 0 ? healthHistory[0].status : server.status;

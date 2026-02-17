@@ -40,17 +40,13 @@ class ScheduleController {
             const { id } = req.params;
             const { name, cron_expression, task_type, is_active } = req.body;
 
-            // Verify ownership via server check effectively handled by service/prisma logic usually, 
-            // but for strictness we might want to check if schedule belongs to user's server. 
-            // For now, simple update.
-
             const existing = await prisma.scheduledUpdate.findUnique({ where: { id } });
             if (!existing) return res.status(404).json({ error: 'Schedule not found' });
 
             const schedule = await schedulerService.saveSchedule({
                 id,
                 name,
-                server_id: existing.server_id || '', // Maintain existing server_id
+                server_id: existing.server_id || '',
                 cron_expression,
                 task_type: task_type,
                 is_active

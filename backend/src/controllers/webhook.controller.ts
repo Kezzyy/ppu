@@ -45,7 +45,6 @@ class WebhookController {
             const { id } = req.params;
             const { name, url, events, is_active, all_servers, server_ids } = req.body;
 
-            // First disconnect all if updating servers, then connect new ones
             if (server_ids) {
                 await prisma.webhook.update({
                     where: { id },
@@ -86,18 +85,14 @@ class WebhookController {
 
     async testWebhook(req: Request, res: Response) {
         try {
-            // Retrieve serverId either from params or body, but for global testing we might mock it
-            // or if the user wants to test context of a specific server
             const { event, serverId } = req.body;
 
-            // Find a server to use for the test payload mock
             let mockServerId = serverId;
             if (!mockServerId) {
                 const server = await prisma.server.findFirst();
                 mockServerId = server?.id || 'unknown-server-id';
             }
 
-            // Mock payload for testing
             const testPayload = {
                 serverName: 'Test Server',
                 pluginName: 'TestPlugin',
@@ -108,15 +103,6 @@ class WebhookController {
                 total: 1
             };
 
-            // Dispatch directly to the URL of the specific webhook if ID is provided?
-            // Or just use the service dispatch which finds matching webhooks.
-            // But for "Test This Webhook" button, we usually want to test a SPECIFIC URL.
-            // The service.dispatch finds ALL webhooks.
-            // Let's modify service to allow sending to a specific URL or just expose sendWebhook publicly?
-            // For now, we'll just use dispatch but restrict it? existing implementation used dispatch.
-            // To test a SPECIFIC webhook, we should probably add a method to service or just use axios here.
-
-            // Let's use the dispatch mechanism but forcing the check.
             await webhookService.dispatch(mockServerId, event, testPayload);
             res.json({ status: 'success', message: 'Test webhook dispatched' });
         } catch (error: any) {

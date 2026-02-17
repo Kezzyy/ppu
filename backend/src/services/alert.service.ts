@@ -19,15 +19,9 @@ class AlertService {
             });
 
             if (existingAlert) {
-                // Update existing alert last triggered? Or just ignore if recent?
-                // For now, we ignore if it's already active to avoid spamming 
-                // UNLESS it's a crash, which is discrete events usually.
-
-                if (type === 'crash') {
-                    // Crashes are discrete, but we might want to debounce them if they happen in loops.
-                    // Let's create a new one for crash always, but maybe limit frequency in the parser.
-                } else {
-                    return; // Alert already active
+                // Ignore duplicate alerts except crashes
+                if (type !== 'crash') {
+                    return;
                 }
             }
 
@@ -43,11 +37,7 @@ class AlertService {
                 include: { server: true }
             });
 
-            // Dispatch Webhook Notification
-            // We use a generic 'server:alert' event or specific ones?
-            // WebhookService expects specific events usually found in the array.
-            // Let's use 'server:alert'
-
+            // Dispatch webhook notification
             await webhookService.dispatch(serverId, 'server:alert', {
                 alert_id: alert.id,
                 type: type,
